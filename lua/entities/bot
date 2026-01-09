@@ -1,0 +1,96 @@
+lua
+AddCSLuaFile()
+
+ENT.Base = "base_nextbot"
+ENT.Spawnable = true
+ENT.PrintName = "L4D Random Survivor"
+
+-- Table of L4D weapon classes from the L4D2 weapon pack
+local l4dWeapons = {
+    "weapon_pumpshotgun",
+    "weapon_autoshotgun",
+    "weapon_rifle_ak47",
+    "weapon_smg",
+    "weapon_hunting_rifle",
+    "weapon_pistol_magnum",
+    "weapon_rifle_desert",
+    "weapon_smg_silenced"
+}
+
+function ENT:Initialize()
+    -- Set a random L4D survivor model
+    local survivorModels = {
+        "models/survivors/survivor_mechanic.mdl", -- Ellis
+        "models/survivors/survivor_coach.mdl",    -- Coach
+        "models/survivors/survivor_gambler.mdl",  -- Nick
+        "models/survivors/survivor_producer.mdl"  -- Rochelle
+    }
+    self:SetModel(survivorModels[math.random(#survivorModels)])
+    
+    -- Pick and give a random weapon
+    local randomWep = l4dWeapons[math.random(#l4dWeapons)]
+    self:GiveRandomWeapon(randomWep)
+    
+    self.SearchRadius = 2000
+end
+
+function ENT:GiveRandomWeapon(wepClass)
+    local weapon = ents.Create(wepClass)
+    if not IsValid(weapon) then return end
+
+    weapon:SetPos(self:GetPos())
+    weapon:SetOwner(self)
+    weapon:SetParent(self)
+    -- Attach to standard right-hand attachment
+    weapon:Fire("setparentattachment", "anim_attachment_RH")
+    weapon:Spawn()
+    
+    self.ActiveWeapon = weapon
+end
+
+function ENT:RunBehaviour()
+    while (true) do
+        local target = self:GetNearestEnemy()
+        if IsValid(target) then
+            self.loco:SetDesiredSpeed(300)
+            self:MoveToPos(target:GetPos()) -- Chase player
+            
+            -- Basic firing logic
+            if self:GetRangeTo(target) < 1000 then
+                self:FireWeapon(target)
+            end
+        else
+            -- Wander if idle
+            self:MoveToPos(self:GetPos() + Vector(math.random(-500, 500), math.random(-500, 500), 0))
+        end
+        coroutine.yield()
+    end
+end
+
+function ENT:FireWeapon(target)
+    if self.NextShoot and CurTime() < self.NextShoot then return end
+    self.NextShoot = CurTime() + 0.2
+
+    self:FireBullets({
+        Num = 1,
+        Src = self:GetPos() + Vector(0, 0, 50),
+        Dir = (target:GetPos() + Vector(0, 0, 40)) - self:GetPos(),
+        Spread = Vector(0.02, 0.02, 0),
+        Damage = 10,
+        Tracer = 1
+    })
+    self:EmitSound("Weapon_Pistol.NPC_Single") -- Standard firing sound
+end
+
+function ENT:GetNearestEnemy()
+    local target = nil
+    local dist = self.SearchRadius
+    for _, v in ipairs(player.GetAll()) do
+        local d = self:GetRangeTo(v)
+        if (d < dist) then
+            target = v
+            dist = d
+        end
+    end
+    return target
+end
