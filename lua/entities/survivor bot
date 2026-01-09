@@ -1,0 +1,79 @@
+lua
+AddCSLuaFile()
+
+ENT.Base 			= "base_nextbot"
+ENT.Spawnable		= true
+ENT.PrintName		= "Random L4D Survivor"
+
+-- Table of possible L4D survivor models
+local SurvivorModels = {
+    "models/survivors/survivor_mechanic.mdl", -- Ellis
+    "models/survivors/survivor_producer.mdl", -- Rochelle
+    "models/survivors/survivor_coach.mdl",    -- Coach
+    "models/survivors/survivor_gambler.mdl"   -- Nick
+}
+
+-- Table of possible random weapons
+local RandomWeapons = {
+    "weapon_m4", 
+    "weapon_ak47", 
+    "weapon_shotgun", 
+    "weapon_smg"
+}
+
+function ENT:Initialize()
+    -- Select a random model from the table
+    local randomModel = SurvivorModels[math.random(#SurvivorModels)]
+    self:SetModel(randomModel)
+    
+    self.LoseTargetDist	= 2000
+    self.SearchRadius 	= 1000
+    self.Speed          = 250
+
+    -- Give the bot a random weapon
+    if SERVER then
+        local randomWep = RandomWeapons[math.random(#RandomWeapons)]
+        self:GiveWeapon(randomWep)
+    end
+end
+
+-- Custom function to handle giving weapons to Nextbots
+function ENT:GiveWeapon(wepClass)
+    local weapon = ents.Create(wepClass)
+    if IsValid(weapon) then
+        weapon:SetPos(self:GetPos())
+        weapon:Spawn()
+        -- Parent the weapon to the bot's hand attachment
+        weapon:SetParent(self)
+        weapon:Fire("setparentattachment", "anim_attachment_RH") 
+        self.ActiveWeapon = weapon
+    end
+end
+
+function ENT:RunBehaviour()
+    while (true) do
+        local target = self:GetEnemy()
+        if (IsValid(target)) then
+            -- Approach enemy
+            self.loco:FaceTowards(target:GetPos())
+            self:MoveToPos(target:GetPos())
+            
+            -- Basic firing logic placeholder
+            if self:GetRangeTo(target) < 500 then
+                -- Add your custom firing logic or animations here
+            end
+        else
+            -- Wander if no enemy is found
+            self:MoveToPos(self:GetPos() + Vector(math.random(-512, 512), math.random(-512, 512), 0))
+        end
+        coroutine.yield()
+    end
+end
+
+function ENT:GetEnemy()
+    local entsInSphere = ents.FindInSphere(self:GetPos(), self.SearchRadius)
+    for _, v in pairs(entsInSphere) do
+        if (v:IsPlayer() and v:Alive()) then return v end
+    end
+    return nil
+end
